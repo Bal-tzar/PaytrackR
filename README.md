@@ -18,3 +18,10 @@ Azure services is the main technology for this project. Other than that there is
 ### Frontend:
     Blazor WebAssembly
 
+## Data extraction targets
+The specific targets for the data extractions from invoices are: 
+    - Due dates
+    - Invoice amounts
+    - Recipient/Payee information (bank account, company name)
+    - Invoice numbers (for reference)
+    - Issue dates
