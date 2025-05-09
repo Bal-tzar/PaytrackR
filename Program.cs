@@ -1,10 +1,15 @@
 using PaytrackR.Components;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+    builder.Configuration.AddJsonFile("appsettings.json", optional: true);
+    builder.Services.AddScoped(sp =>
+    new HttpClient { BaseAddress = new Uri(builder.Configuration["BaseAddress"] ?? "https://paytrackr-fa.azurewebsites.net") });
 
 var app = builder.Build();
 
@@ -16,7 +21,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
 
 app.UseAntiforgery();
