@@ -1,0 +1,222 @@
+@page "/invoice-uploader"
+@using System.Net.Http.Headers
+@using System.IO
+@inject HttpClient Http
+@inject IConfiguration Configuration
+@inject IJSRuntime JSRuntime
+
+<h1>Invoice Uploader</h1>
+
+<div class="upload-container @(isDragging ? "drag-active" : "")">
+    <div class="upload-area" 
+         @ondragenter="HandleDragEnter" 
+         @ondragleave="HandleDragLeave" 
+         @ondragover:preventDefault 
+         @ondrop="HandleDrop">
+        
+        <InputFile OnChange="HandleFileSelection" multiple class="input-file" />
+        
+        <div class="upload-prompt">
+            <i class="fa fa-cloud-upload fa-3x"></i>
+            <p>Drag and drop PDF invoices here, or click to select files</p>
+        </div>
+    </div>
+</div>
+
+@if (isUploading)
+{
+    <div class="progress-container">
+        <div class="progress">
+            <div class="progress-bar" style="width: @(uploadProgress)%">
+                @uploadProgress.ToString("0")%
+            </div>
+        </div>
+    </div>
+}
+
+<div class="uploaded-files">
+    <h3>Uploaded Invoices</h3>
+    
+    @if (uploadedFiles.Count == 0)
+    {
+        <p>No invoices uploaded yet</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Filename</th>
+                    <th>Size</th>
+                    <th>Upload Date</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var file in uploadedFiles)
+                {
+                    <tr>
+                        <td>@file.FileName</td>
+                        <td>@FormatFileSize(file.FileSize)</td>
+                        <td>@file.UploadDate.ToString("g")</td>
+                        <td>
+                            @if (file.IsProcessing)
+                            {
+                                <span class="badge bg-warning">Processing</span>
+                            }
+                            else if (file.IsProcessed)
+                            {
+                                <span class="badge bg-success">Processed</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-info">Uploaded</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private bool isDragging = false;
+    private bool isUploading = false;
+    private double uploadProgress = 0;
+    private List<UploadedFileInfo> uploadedFiles = new List<UploadedFileInfo>();
+    private string functionApiUrl;
+
+    protected override void OnInitialized()
+    {
+        // Get the Azure Function URL from configuration
+        functionApiUrl = Configuration["FunctionApiUrl"] ?? "http://localhost:7071/api/UploadInvoice";
+    }
+
+    private void HandleDragEnter()
+    {
+        isDragging = true;
+    }
+
+    private void HandleDragLeave()
+    {
+        isDragging = false;
+    }
+
+    private async Task HandleDrop(DragEventArgs e)
+    {
+        isDragging = false;
+        
+        // In a real implementation, we would need to handle the dropped files
+        // This requires JavaScript interop since Blazor doesn't directly support file drop
+        await JSRuntime.InvokeVoidAsync("handleFileDrop", e);
+    }
+
+    private async Task HandleFileSelection(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            isUploading = true;
+            uploadProgress = 0;
+            
+            foreach (var file in e.GetMultipleFiles(10)) // Limit to 10 files at once
+            {
+                if (Path.GetExtension(file.Name).ToLower() != ".pdf")
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "Only PDF files are supported.");
+                    continue;
+                }
+                
+                // For files larger than 512KB, we'll read them in chunks
+                const int maxAllowedSize = 1024 * 1024 * 10; // 10MB
+                
+                if (file.Size > maxAllowedSize)
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", $"File {file.Name} exceeds the maximum allowed size of 10MB.");
+                    continue;
+                }
+                
+                // Read the file content
+                using var memoryStream = new MemoryStream();
+                await file.OpenReadStream(maxAllowedSize).CopyToAsync(memoryStream);
+                memoryStream.Seek(0, SeekOrigin.Begin);
+                
+                // Create a new HttpContent from the file
+                var content = new MultipartFormDataContent();
+                var fileContent = new ByteArrayContent(memoryStream.ToArray());
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+                content.Add(
+                    content: fileContent,
+                    name: "\"file\"",
+                    fileName: file.Name
+                );
+                
+                // Upload to Azure Function
+                var response = await Http.PostAsync(functionApiUrl, content);
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    // Add to the list of uploaded files
+                    uploadedFiles.Add(new UploadedFileInfo
+                    {
+                        FileName = file.Name,
+                        FileSize = file.Size,
+                        UploadDate = DateTime.Now,
+                        IsProcessing = true
+                    });
+                    
+                    // In a real app, you would subscribe to a notification or poll for status
+                    // For demo purposes, we'll simulate processing completion after 5 seconds
+                    var uploadedFile = uploadedFiles.Last();
+                    _ = Task.Run(async () => {
+                        await Task.Delay(5000);
+                        uploadedFile.IsProcessing = false;
+                        uploadedFile.IsProcessed = true;
+                        await InvokeAsync(StateHasChanged);
+                    });
+                }
+                else
+                {
+                    var errorMessage = await response.Content.ReadAsStringAsync();
+                    await JSRuntime.InvokeVoidAsync("alert", $"Upload failed: {errorMessage}");
+                }
+                
+                // Update progress
+                uploadProgress = 100;
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string FormatFileSize(long size)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double len = size;
+        
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        
+        return $"{len:0.##} {sizes[order]}";
+    }
+
+    private class UploadedFileInfo
+    {
+        public string FileName { get; set; }
+        public long FileSize { get; set; }
+        public DateTime UploadDate { get; set; }
+        public bool IsProcessing { get; set; }
+        public bool IsProcessed { get; set; }
+    }
+}
