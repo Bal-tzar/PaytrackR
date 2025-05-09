@@ -1,0 +1,276 @@
+@page "/invoice-results"
+@inject HttpClient Http
+@inject IConfiguration Configuration
+
+<h1>Processed Invoices</h1>
+
+@if (loading)
+{
+    <div class="loading-container">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading invoice data...</p>
+    </div>
+}
+else if (error != null)
+{
+    <div class="alert alert-danger" role="alert">
+        Error loading data: @error
+    </div>
+}
+else if (invoices == null || !invoices.Any())
+{
+    <div class="alert alert-info" role="alert">
+        No processed invoices found. Upload some invoices first!
+    </div>
+}
+else
+{
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        @foreach (var invoice in invoices)
+        {
+            <div class="col">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            @(invoice.VendorName ?? "Unknown Vendor")
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-info">
+                            <div class="info-item">
+                                <strong>Invoice ID:</strong> @(invoice.InvoiceId ?? "N/A")
+                            </div>
+                            <div class="info-item">
+                                <strong>Date:</strong> @(invoice.InvoiceDate?.ToString("d") ?? "N/A")
+                            </div>
+                            <div class="info-item">
+                                <strong>Due Date:</strong> @(invoice.DueDate?.ToString("d") ?? "N/A")
+                            </div>
+                            <div class="info-item amount-due">
+                                <strong>Amount Due:</strong> @(invoice.InvoiceTotal?.ToString("C") ?? "N/A")
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge bg-success">Processed</span>
+                            <button class="btn btn-sm btn-primary" @onclick="() => ShowDetails(invoice)">View Details</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (selectedInvoice != null)
+    {
+        <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Invoice Details</h5>
+                        <button type="button" class="btn-close" @onclick="CloseDetails"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Vendor Information</h6>
+                                <p>@selectedInvoice.VendorName</p>
+                                @if (!string.IsNullOrEmpty(selectedInvoice.BillingAddress))
+                                {
+                                    <p>@selectedInvoice.BillingAddress</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Invoice Information</h6>
+                                <p><strong>Invoice #:</strong> @selectedInvoice.InvoiceId</p>
+                                <p><strong>Date:</strong> @selectedInvoice.InvoiceDate?.ToString("d")</p>
+                                <p><strong>Due Date:</strong> @selectedInvoice.DueDate?.ToString("d")</p>
+                            </div>
+                        </div>
+                        <hr />
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6>Financial Details</h6>
+                                <table class="table table-sm">
+                                    <tbody>
+                                        <tr>
+                                            <td>Subtotal</td>
+                                            <td class="text-end">@(selectedInvoice.SubTotal?.ToString("C") ?? "N/A")</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Tax</td>
+                                            <td class="text-end">@(selectedInvoice.TotalTax?.ToString("C") ?? "N/A")</td>
+                                        </tr>
+                                        <tr class="table-active">
+                                            <th>Total Amount</th>
+                                            <th class="text-end">@(selectedInvoice.InvoiceTotal?.ToString("C") ?? "N/A")</th>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        @if (selectedInvoice.Items != null && selectedInvoice.Items.Any())
+                        {
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <h6>Line Items</h6>
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Description</th>
+                                                <th class="text-end">Quantity</th>
+                                                <th class="text-end">Unit Price</th>
+                                                <th class="text-end">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var item in selectedInvoice.Items)
+                                            {
+                                                <tr>
+                                                    <td>@item.Description</td>
+                                                    <td class="text-end">@item.Quantity</td>
+                                                    <td class="text-end">@(item.UnitPrice?.ToString("C") ?? "N/A")</td>
+                                                    <td class="text-end">@(item.Amount?.ToString("C") ?? "N/A")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseDetails">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+}
+
+@code {
+    private List<InvoiceData> invoices;
+    private InvoiceData selectedInvoice;
+    private bool loading = true;
+    private string error;
+    private string apiBaseUrl;
+
+    protected override async Task OnInitializedAsync()
+    {
+        apiBaseUrl = Configuration["FunctionApiUrl"]?.Replace("/UploadInvoice", "") 
+            ?? "https://paytrackr-fa.azurewebsites.net/api";
+        
+        await LoadInvoices();
+    }
+
+    private async Task LoadInvoices()
+    {
+        try
+        {
+            loading = true;
+            error = null;
+            
+            // In a real application, you would call a function to get the list of processed invoices
+            // For this demo, we'll create some sample data
+            // var response = await Http.GetFromJsonAsync<List<InvoiceData>>($"{apiBaseUrl}/GetInvoices");
+            
+            // Simulate API call with sample data
+            await Task.Delay(1000); // Simulate network delay
+            invoices = GetSampleInvoices();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private List<InvoiceData> GetSampleInvoices()
+    {
+        // Sample data for demonstration
+        return new List<InvoiceData>
+        {
+            new InvoiceData
+            {
+                InvoiceId = "INV-2025-001",
+                InvoiceDate = DateTime.Now.AddDays(-15),
+                DueDate = DateTime.Now.AddDays(15),
+                VendorName = "Office Supplies Co.",
+                CustomerName = "Your Company Name",
+                SubTotal = 450.00m,
+                TotalTax = 36.00m,
+                InvoiceTotal = 486.00m,
+                BillingAddress = "123 Vendor St, Business City, 12345",
+                Items = new List<InvoiceItem>
+                {
+                    new InvoiceItem { Description = "Premium Paper", Quantity = 10, UnitPrice = 25.00m, Amount = 250.00m },
+                    new InvoiceItem { Description = "Ink Cartridges", Quantity = 4, UnitPrice = 50.00m, Amount = 200.00m }
+                }
+            },
+            new InvoiceData
+            {
+                InvoiceId = "INV-2025-042",
+                InvoiceDate = DateTime.Now.AddDays(-7),
+                DueDate = DateTime.Now.AddDays(23),
+                VendorName = "Cloud Hosting Services",
+                CustomerName = "Your Company Name",
+                SubTotal = 199.99m,
+                TotalTax = 16.00m,
+                InvoiceTotal = 215.99m,
+                BillingAddress = "456 Cloud Ave, Tech City, 54321"
+            },
+            new InvoiceData
+            {
+                InvoiceId = "INV-2025-108",
+                InvoiceDate = DateTime.Now.AddDays(-30),
+                DueDate = DateTime.Now.AddDays(-15),
+                VendorName = "Marketing Agency LLC",
+                CustomerName = "Your Company Name",
+                SubTotal = 1500.00m,
+                TotalTax = 120.00m,
+                InvoiceTotal = 1620.00m,
+                BillingAddress = "789 Marketing Blvd, Creative District, 67890"
+            }
+        };
+    }
+
+    private void ShowDetails(InvoiceData invoice)
+    {
+        selectedInvoice = invoice;
+    }
+
+    private void CloseDetails()
+    {
+        selectedInvoice = null;
+    }
+
+    public class InvoiceData
+    {
+        public string InvoiceId { get; set; }
+        public DateTime? InvoiceDate { get; set; }
+        public DateTime? DueDate { get; set; }
+        public string VendorName { get; set; }
+        public string CustomerName { get; set; }
+        public decimal? SubTotal { get; set; }
+        public decimal? TotalTax { get; set; }
+        public decimal? InvoiceTotal { get; set; }
+        public string BillingAddress { get; set; }
+        public List<InvoiceItem> Items { get; set; }
+    }
+
+    public class InvoiceItem
+    {
+        public string Description { get; set; }
+        public int Quantity { get; set; }
+        public decimal? UnitPrice { get; set; }
+        public decimal? Amount { get; set; }
+    }
+}
