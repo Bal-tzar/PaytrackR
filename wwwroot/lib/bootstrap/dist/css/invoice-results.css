@@ -1,0 +1,56 @@
+.loading-container {
+    text-align: center;
+    padding: 30px;
+}
+
+.card {
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0,0,0,0.125);
+}
+
+.card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+}
+
+.amount-due {
+    margin-top: 10px;
+    font-size: 1.1em;
+    color: #0d6efd;
+}
+
+.modal-backdrop {
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    background-color: #f8f9fa;
+}
+
+/* Make the modal scrollable on smaller screens */
+@media (max-height: 800px) {
+    .modal-body {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+}

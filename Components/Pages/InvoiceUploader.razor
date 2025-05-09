@@ -90,7 +90,7 @@
     protected override void OnInitialized()
     {
         // Get the Azure Function URL from configuration
-        functionApiUrl = Configuration["FunctionApiUrl"] ?? "http://localhost:7071/api/UploadInvoice";
+        functionApiUrl = Configuration["FunctionApiUrl"] ?? "http://paytrackr-fa.azurewebsites.net";
     }
 
     private void HandleDragEnter()
