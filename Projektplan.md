@@ -56,16 +56,11 @@
 ## 6. Risklogg
 | Risk | Sannolikhet | Konsekvens | Åtgärd |
 | --- | --- | --- | --- |
-| Kubernetes-kompatibilitet på Raspberry Pi 5 (ARM64) | H | H |  |
-| Fel vid image-byggen mellan x86 och ARM | M | H |  |
-| CI/CD-problem i GitHub Actions (autentisering mot Azure) | M | M |  |
-| Tidsbrist p.g.a. för bred scope | H | H |  |
-| Oförutsedda nätverksproblem mellan Pi5 och Azure | M | M |  |
-| Felkonfigurerade secrets i GitHub Actions eller Azure | L | H |  |
-| Resurskostnader i Azure (AKS, ACR) | M | M |  |
-| Otillräcklig dokumentation eller lärande-reflektion | M | H |  |
-| Databas- eller volymproblem i Kubernetes | L | M |  |
-| Felprioritering mellan app och infrastruktur | H | M |  |
+| Kubernetes-kompatibilitet på Raspberry Pi 5 (ARM64) | H | H | Bygg image på Linux, alternativt redigera dockerfile för att få rätt build |
+| CI/CD-problem i GitHub Actions (autentisering mot Azure) | M | M | Se till att secrets hanteras korrekt |
+| Tidsbrist p.g.a. för bred scope | H | H | Försök avgränsa och ta ett steg i taget |
+| Resurskostnader i Azure (AKS, ACR) | M | M | Sätt budget och larm, kanske till och med script så att resurser deletas om det når en viss gräns |
+| Otillräcklig dokumentation eller lärande-reflektion | M | H | För dagbok för kontinuerlig dokumentation |
 
 ## 7. Resurser & verktyg
 - Raspberry Pi 5 med Ubuntu Server 24.04  
