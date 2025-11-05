@@ -56,7 +56,7 @@
 ## 6. Risklogg
 | Risk | Sannolikhet | Konsekvens | Åtgärd |
 | --- | --- | --- | --- |
-| Kubernetes-kompatibilitet på Raspberry Pi 5 (ARM64) | H | H | Bygg image på Linux, alternativt redigera dockerfile för att få rätt build |
+| Kubernetes-kompatibilitet på Raspberry Pi 5 (ARM64) | H | H | Bygg multi-arch image så att rätt version dras automagiskt av k8s |
 | CI/CD-problem i GitHub Actions (autentisering mot Azure) | M | M | Se till att secrets hanteras korrekt |
 | Tidsbrist p.g.a. för bred scope | H | H | Försök avgränsa och ta ett steg i taget |
 | Resurskostnader i Azure (AKS, ACR) | M | M | Sätt budget och larm, kanske till och med script så att resurser deletas om det når en viss gräns |
