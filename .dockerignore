@@ -4,3 +4,27 @@ obj/
 .git/
 *.user
 *.suo
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Terraform crash logs
+crash.log
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Git stuff
+.git/
+.gitignore
+
+# Other local files
+*.log
+*.bak
+*.tmp
