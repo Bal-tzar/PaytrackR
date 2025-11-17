@@ -1,0 +1,265 @@
+@page "/workers"
+@using PaytrackR.Data
+@using PaytrackR.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Workers</PageTitle>
+
+<h1>Workers</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <h3>Add New Worker</h3>
+        
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger" role="alert">
+                @errorMessage
+            </div>
+        }
+        
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success" role="alert">
+                @successMessage
+            </div>
+        }
+
+        <EditForm Model="@newWorker" OnValidSubmit="@HandleValidSubmit" FormName="addWorker">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-3">
+                <label for="firstName" class="form-label">First Name</label>
+                <InputText id="firstName" class="form-control" @bind-Value="newWorker.FirstName" />
+                <ValidationMessage For="@(() => newWorker.FirstName)" />
+            </div>
+
+            <div class="mb-3">
+                <label for="lastName" class="form-label">Last Name</label>
+                <InputText id="lastName" class="form-control" @bind-Value="newWorker.LastName" />
+                <ValidationMessage For="@(() => newWorker.LastName)" />
+            </div>
+
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <InputText id="email" type="email" class="form-control" @bind-Value="newWorker.Email" />
+                <ValidationMessage For="@(() => newWorker.Email)" />
+            </div>
+
+            <div class="mb-3">
+                <label for="hourlyRate" class="form-label">Hourly Rate (SEK)</label>
+                <InputNumber id="hourlyRate" class="form-control" @bind-Value="newWorker.HourlyRate" />
+                <ValidationMessage For="@(() => newWorker.HourlyRate)" />
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                }
+                Add Worker
+            </button>
+        </EditForm>
+    </div>
+
+    <div class="col-md-6">
+        <h3>Current Workers</h3>
+        
+        @if (workers == null)
+        {
+            <p><em>Loading...</em></p>
+        }
+        else if (!workers.Any())
+        {
+            <p><em>No workers found. Add your first worker!</em></p>
+        }
+        else
+        {
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Hourly Rate</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var worker in workers)
+                    {
+                        <tr>
+                            <td>@worker.FirstName @worker.LastName</td>
+                            <td>@worker.Email</td>
+                            <td>@worker.HourlyRate.ToString("C", new System.Globalization.CultureInfo("sv-SE"))</td>
+                            <td>
+                                @if (worker.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inactive</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" 
+                                        @onclick="@(() => DeleteWorker(worker.Id))"
+                                        disabled="@isDeletingWorkerId.Contains(worker.Id)">
+                                    @if (isDeletingWorkerId.Contains(worker.Id))
+                                    {
+                                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    }
+                                    else
+                                    {
+                                        <span class="bi bi-trash"></span>
+                                        <span>Delete</span>
+                                    }
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private WorkerFormModel newWorker = new();
+    private List<Worker>? workers;
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isSubmitting;
+    private HashSet<int> isDeletingWorkerId = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWorkersAsync();
+    }
+
+    private async Task LoadWorkersAsync()
+    {
+        workers = await DbContext.Workers
+            .OrderBy(w => w.LastName)
+            .ThenBy(w => w.FirstName)
+            .ToListAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            // Check if email already exists
+            var existingWorker = await DbContext.Workers
+                .FirstOrDefaultAsync(w => w.Email == newWorker.Email);
+
+            if (existingWorker != null)
+            {
+                errorMessage = "A worker with this email address already exists.";
+                isSubmitting = false;
+                return;
+            }
+
+            var worker = new Worker
+            {
+                FirstName = newWorker.FirstName,
+                LastName = newWorker.LastName,
+                Email = newWorker.Email,
+                HourlyRate = newWorker.HourlyRate,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            DbContext.Workers.Add(worker);
+            await DbContext.SaveChangesAsync();
+
+            successMessage = $"Worker {worker.FirstName} {worker.LastName} has been added successfully!";
+            
+            // Reset form
+            newWorker = new WorkerFormModel();
+            
+            // Reload workers list
+            await LoadWorkersAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error adding worker: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task DeleteWorker(int workerId)
+    {
+        isDeletingWorkerId.Add(workerId);
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var worker = await DbContext.Workers
+                .Include(w => w.Shifts)
+                .FirstOrDefaultAsync(w => w.Id == workerId);
+
+            if (worker == null)
+            {
+                errorMessage = "Worker not found.";
+                return;
+            }
+
+            // Check if worker has shifts
+            if (worker.Shifts.Any())
+            {
+                errorMessage = $"Cannot delete {worker.FirstName} {worker.LastName}. This worker has {worker.Shifts.Count} shift(s) recorded. Delete shifts first or deactivate the worker instead.";
+                return;
+            }
+
+            DbContext.Workers.Remove(worker);
+            await DbContext.SaveChangesAsync();
+
+            successMessage = $"Worker {worker.FirstName} {worker.LastName} has been deleted successfully.";
+            
+            // Reload workers list
+            await LoadWorkersAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error deleting worker: {ex.Message}";
+        }
+        finally
+        {
+            isDeletingWorkerId.Remove(workerId);
+        }
+    }
+
+    private class WorkerFormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "First name is required")]
+        [System.ComponentModel.DataAnnotations.StringLength(100, ErrorMessage = "First name cannot exceed 100 characters")]
+        public string FirstName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Last name is required")]
+        [System.ComponentModel.DataAnnotations.StringLength(100, ErrorMessage = "Last name cannot exceed 100 characters")]
+        public string LastName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Email is required")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Invalid email address")]
+        [System.ComponentModel.DataAnnotations.StringLength(255, ErrorMessage = "Email cannot exceed 255 characters")]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Hourly rate is required")]
+        [System.ComponentModel.DataAnnotations.Range(0.01, 10000, ErrorMessage = "Hourly rate must be between 0.01 and 10000")]
+        public decimal HourlyRate { get; set; }
+    }
+}

@@ -1,5 +1,6 @@
 using PaytrackR.Components;
 using PaytrackR.Data;
+using PaytrackR.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +12,9 @@ builder.Services.AddRazorComponents()
 // Add PostgreSQL
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Add business services
+builder.Services.AddScoped<ShiftService>();
 
 var app = builder.Build();
 
