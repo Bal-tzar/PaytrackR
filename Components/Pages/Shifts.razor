@@ -1,0 +1,363 @@
+@page "/shifts"
+@using PaytrackR.Data
+@using PaytrackR.Models
+@using PaytrackR.Services
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject ShiftService ShiftService
+@rendermode InteractiveServer
+
+<PageTitle>Shifts</PageTitle>
+
+<h1>Shift Management</h1>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @errorMessage
+        <button type="button" class="btn-close" @onclick="@(() => errorMessage = null)"></button>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @successMessage
+        <button type="button" class="btn-close" @onclick="@(() => successMessage = null)"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Start New Shift</h5>
+            </div>
+            <div class="card-body">
+                @if (workers == null)
+                {
+                    <p><em>Loading workers...</em></p>
+                }
+                else if (!workers.Any())
+                {
+                    <p class="text-muted">No workers available. Please add workers first.</p>
+                    <a href="/workers" class="btn btn-primary">Add Workers</a>
+                }
+                else
+                {
+                    <div class="mb-3">
+                        <label for="workerSelect" class="form-label">Select Worker</label>
+                        <select id="workerSelect" class="form-select" @bind="selectedWorkerId">
+                            <option value="0">-- Select a worker --</option>
+                            @foreach (var worker in workers.Where(w => w.IsActive))
+                            {
+                                <option value="@worker.Id">@worker.FirstName @worker.LastName (@worker.HourlyRate.ToString("C", new System.Globalization.CultureInfo("sv-SE"))/h)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <button class="btn btn-success w-100" 
+                            @onclick="StartShift" 
+                            disabled="@(selectedWorkerId == 0 || isStarting)">
+                        @if (isStarting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        <span class="bi bi-play-circle me-2"></span>
+                        Start Shift
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (activeShifts != null && activeShifts.Any())
+        {
+            <div class="card">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0">Active Shifts</h5>
+                </div>
+                <div class="card-body">
+                    @foreach (var shift in activeShifts)
+                    {
+                        <div class="border rounded p-3 mb-3">
+                            <h6>@shift.Worker.FirstName @shift.Worker.LastName</h6>
+                            <p class="mb-2 text-muted">
+                                <small>Started: @shift.StartTime.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</small>
+                            </p>
+                            <p class="mb-2">
+                                <strong>Duration:</strong> @GetElapsedTime(shift.StartTime)
+                            </p>
+                            <p class="mb-3">
+                                <strong>Rate:</strong> @shift.HourlyRateAtTimeOfShift.ToString("C", new System.Globalization.CultureInfo("sv-SE"))/h
+                            </p>
+                            <button class="btn btn-danger btn-sm w-100" 
+                                    @onclick="@(() => EndShift(shift.Id))"
+                                    disabled="@isEndingShiftId.Contains(shift.Id)">
+                                @if (isEndingShiftId.Contains(shift.Id))
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                }
+                                <span class="bi bi-stop-circle me-2"></span>
+                                End Shift
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Shift History</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="filterWorker" class="form-label">Filter by Worker</label>
+                        <select id="filterWorker" class="form-select" @bind="filterWorkerId" @bind:after="LoadShiftsAsync">
+                            <option value="0">All Workers</option>
+                            @if (workers != null)
+                            {
+                                @foreach (var worker in workers)
+                                {
+                                    <option value="@worker.Id">@worker.FirstName @worker.LastName</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="startDate" class="form-label">From Date</label>
+                        <input type="date" id="startDate" class="form-control" @bind="filterStartDate" @bind:after="LoadShiftsAsync" />
+                    </div>
+                    <div class="col-md-3">
+                        <label for="endDate" class="form-label">To Date</label>
+                        <input type="date" id="endDate" class="form-control" @bind="filterEndDate" @bind:after="LoadShiftsAsync" />
+                    </div>
+                </div>
+
+                @if (completedShifts == null)
+                {
+                    <p><em>Loading shifts...</em></p>
+                }
+                else if (!completedShifts.Any())
+                {
+                    <p class="text-muted">No completed shifts found.</p>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <strong>Total Earnings:</strong> @completedShifts.Sum(s => s.TotalEarnings).ToString("C", new System.Globalization.CultureInfo("sv-SE"))
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Worker</th>
+                                    <th>Start Time</th>
+                                    <th>End Time</th>
+                                    <th>Duration</th>
+                                    <th>Rate</th>
+                                    <th>Earnings</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var shift in completedShifts)
+                                {
+                                    <tr>
+                                        <td>@shift.Worker.FirstName @shift.Worker.LastName</td>
+                                        <td>@shift.StartTime.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>@shift.EndTime?.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>@FormatDuration(shift.Duration)</td>
+                                        <td>@shift.HourlyRateAtTimeOfShift.ToString("C", new System.Globalization.CultureInfo("sv-SE"))</td>
+                                        <td><strong>@shift.TotalEarnings.ToString("C", new System.Globalization.CultureInfo("sv-SE"))</strong></td>
+                                        <td>
+                                            <button class="btn btn-danger btn-sm" 
+                                                    @onclick="@(() => DeleteShift(shift.Id))"
+                                                    disabled="@isDeletingShiftId.Contains(shift.Id)">
+                                                @if (isDeletingShiftId.Contains(shift.Id))
+                                                {
+                                                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="bi bi-trash"></span>
+                                                }
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Worker>? workers;
+    private List<Shift>? activeShifts;
+    private List<Shift>? completedShifts;
+    private int selectedWorkerId;
+    private int filterWorkerId;
+    private DateTime? filterStartDate;
+    private DateTime? filterEndDate;
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isStarting;
+    private HashSet<int> isEndingShiftId = new();
+    private HashSet<int> isDeletingShiftId = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWorkersAsync();
+        await LoadShiftsAsync();
+    }
+
+    private async Task LoadWorkersAsync()
+    {
+        workers = await DbContext.Workers
+            .OrderBy(w => w.LastName)
+            .ThenBy(w => w.FirstName)
+            .ToListAsync();
+    }
+
+    private async Task LoadShiftsAsync()
+    {
+        var query = DbContext.Shifts
+            .Include(s => s.Worker)
+            .AsQueryable();
+
+        if (filterWorkerId > 0)
+        {
+            query = query.Where(s => s.WorkerId == filterWorkerId);
+        }
+
+        if (filterStartDate.HasValue)
+        {
+            query = query.Where(s => s.StartTime >= filterStartDate.Value);
+        }
+
+        if (filterEndDate.HasValue)
+        {
+            var endOfDay = filterEndDate.Value.AddDays(1);
+            query = query.Where(s => s.StartTime < endOfDay);
+        }
+
+        var allShifts = await query
+            .OrderByDescending(s => s.StartTime)
+            .ToListAsync();
+
+        activeShifts = allShifts.Where(s => !s.EndTime.HasValue).ToList();
+        completedShifts = allShifts.Where(s => s.EndTime.HasValue).ToList();
+    }
+
+    private async Task StartShift()
+    {
+        if (selectedWorkerId == 0)
+        {
+            errorMessage = "Please select a worker.";
+            return;
+        }
+
+        isStarting = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var shift = await ShiftService.StartShiftAsync(selectedWorkerId);
+            var worker = workers?.FirstOrDefault(w => w.Id == selectedWorkerId);
+            
+            successMessage = $"Shift started for {worker?.FirstName} {worker?.LastName}!";
+            selectedWorkerId = 0;
+            
+            await LoadShiftsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error starting shift: {ex.Message}";
+        }
+        finally
+        {
+            isStarting = false;
+        }
+    }
+
+    private async Task EndShift(int shiftId)
+    {
+        isEndingShiftId.Add(shiftId);
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var shift = await ShiftService.EndShiftAsync(shiftId);
+            var worker = workers?.FirstOrDefault(w => w.Id == shift.WorkerId);
+            
+            successMessage = $"Shift ended for {worker?.FirstName} {worker?.LastName}. Earnings: {shift.TotalEarnings.ToString("C", new System.Globalization.CultureInfo("sv-SE"))}";
+            
+            await LoadShiftsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error ending shift: {ex.Message}";
+        }
+        finally
+        {
+            isEndingShiftId.Remove(shiftId);
+        }
+    }
+
+    private async Task DeleteShift(int shiftId)
+    {
+        isDeletingShiftId.Add(shiftId);
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var shift = await DbContext.Shifts
+                .Include(s => s.Worker)
+                .FirstOrDefaultAsync(s => s.Id == shiftId);
+
+            if (shift == null)
+            {
+                errorMessage = "Shift not found.";
+                return;
+            }
+
+            DbContext.Shifts.Remove(shift);
+            await DbContext.SaveChangesAsync();
+
+            successMessage = $"Shift for {shift.Worker.FirstName} {shift.Worker.LastName} has been deleted.";
+            
+            await LoadShiftsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error deleting shift: {ex.Message}";
+        }
+        finally
+        {
+            isDeletingShiftId.Remove(shiftId);
+        }
+    }
+
+    private string GetElapsedTime(DateTime startTime)
+    {
+        var elapsed = DateTime.UtcNow - startTime;
+        return $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m";
+    }
+
+    private string FormatDuration(TimeSpan? duration)
+    {
+        if (!duration.HasValue) return "-";
+        return $"{(int)duration.Value.TotalHours}h {duration.Value.Minutes}m";
+    }
+}
