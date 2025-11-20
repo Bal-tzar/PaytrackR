@@ -1,21 +1,24 @@
+output "kube_config" {
+  value     = azurerm_kubernetes_cluster.aks.kube_config_raw
+  sensitive = true
+}
+
 output "cluster_name" {
-  description = "Name of the AKS cluster"
-  value       = azurerm_kubernetes_cluster.main.name
+  value = azurerm_kubernetes_cluster.aks.name
 }
 
 output "resource_group_name" {
-  description = "Name of the resource group"
-  value       = azurerm_resource_group.main.name
+  value = azurerm_resource_group.rg.name
 }
 
-output "cluster_endpoint" {
-  description = "Endpoint for the AKS cluster"
-  value       = azurerm_kubernetes_cluster.main.kube_config.0.host
-  sensitive   = true
+output "postgres_fqdn" {
+  value = azurerm_postgresql_flexible_server.postgres.fqdn
 }
 
-output "kube_config" {
-  description = "Kubeconfig for the AKS cluster"
-  value       = azurerm_kubernetes_cluster.main.kube_config_raw
-  sensitive   = true
+output "key_vault_name" {
+  value = azurerm_key_vault.kv.name
+}
+
+output "get_credentials_command" {
+  value = "az aks get-credentials --resource-group ${azurerm_resource_group.rg.name} --name ${azurerm_kubernetes_cluster.aks.name}"
 }
