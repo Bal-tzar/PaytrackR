@@ -1,2 +1,2 @@
 # PaytrackR
-app for uploading documents to the web
+app for scheduling workers and calculation their pay
