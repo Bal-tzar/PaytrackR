@@ -16,7 +16,17 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Add business services
 builder.Services.AddScoped<ShiftService>();
 
+// Add health checks
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
+
+// Run migrations automatically on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    db.Database.Migrate();
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -34,5 +44,8 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Map health check endpoint
+app.MapHealthChecks("/health");
 
 app.Run();
