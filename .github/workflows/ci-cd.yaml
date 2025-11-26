@@ -31,7 +31,6 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -63,27 +62,35 @@ jobs:
             --name ${{ env.CLUSTER_NAME }} \
             --overwrite-existing
 
-      - name: Update image tag in deployment
-        run: |
-          sed -i "s|image: .*|image: ${{ env.DOCKER_IMAGE }}:main-${{ github.sha }}|g" k8s/deployment.yaml
-
       - name: Deploy to AKS
         run: |
           kubectl apply -f k8s/namespace.yaml
           kubectl apply -f k8s/secret.yaml
-          kubectl apply -f k8s/configmap.yaml
-          kubectl apply -f k8s/postgres-deployment.yaml
-          kubectl apply -f k8s/postgres-service.yaml
           kubectl apply -f k8s/deployment.yaml
-          kubectl apply -f k8s/service.yaml
 
-      - name: Verify deployment
+      - name: Wait for deployment to be ready
         run: |
-          kubectl rollout status deployment/paytrackr -n ${{ env.NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/paytrackr -n ${{ env.NAMESPACE }} --timeout=10m
+
+      - name: Debug - Check pod status if rollout fails
+        if: failure()
+        run: |
+          echo "=== Pod Status ==="
+          kubectl get pods -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "=== Pod Descriptions ==="
+          kubectl describe pods -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "=== Pod Logs ==="
+          kubectl logs -n ${{ env.NAMESPACE }} -l app=paytrackr --tail=100
+
+      - name: Get deployment status
+        run: |
           kubectl get pods -n ${{ env.NAMESPACE }}
           kubectl get svc -n ${{ env.NAMESPACE }}
+          kubectl get deployment -n ${{ env.NAMESPACE }}
 
       - name: Get application URL
         run: |
           echo "Application URL:"
-          kubectl get svc paytrackr-service -n ${{ env.NAMESPACE }} -o jsonpath='http://{.status.loadBalancer.ingress[0].ip}'
+          kubectl get svc paytrackr-service -n ${{ env.NAMESPACE }} -o jsonpath='http://{.status.loadBalancer.ingress[0].ip}' || echo "LoadBalancer IP not yet assigned"
