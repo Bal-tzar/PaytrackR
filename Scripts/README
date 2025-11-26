@@ -1,0 +1,85 @@
+# PaytrackR Azure Deployment Guide
+
+## Prerequisites
+
+1. **Azure CLI** installed and logged in:
+   ```bash
+   az login
+   ```
+
+2. **Terraform** installed (v1.0+)
+
+3. **kubectl** installed
+
+4. **Helm** installed
+
+## Deployment Steps
+
+### 1. Set your PostgreSQL password
+
+Edit `scripts/deploy.sh` and replace `YOUR_SECURE_PASSWORD_HERE` with a strong password.
+
+### 2. Run the deployment script
+
+```bash
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
+```
+
+This will:
+- Create Azure resources (AKS, PostgreSQL, Key Vault)
+- Install ArgoCD
+- Install Prometheus/Grafana
+- Deploy PaytrackR application
+
+### 3. Access your services
+
+After deployment, the script will output the URLs for:
+- **PaytrackR application**
+- **ArgoCD UI** (for GitOps management)
+- **Grafana** (for monitoring)
+
+### 4. Run database migrations
+
+Once the app is deployed, run migrations:
+
+```bash
+# Get a pod name
+POD=$(kubectl get pod -n paytrackr -l app=paytrackr -o jsonpath="{.items[0].metadata.name}")
+
+# Run migrations
+kubectl exec -n paytrackr $POD -- dotnet ef database update
+```
+
+## Monitoring
+
+- **Grafana**: Access at the URL provided, login with `admin/admin`
+- **Prometheus**: Accessible via Grafana datasource
+
+## GitOps with ArgoCD
+
+1. Fork/create a Git repository with your k8s manifests
+2. Update `argocd/application.yaml` with your repo URL
+3. Apply: `kubectl apply -f argocd/application.yaml`
+4. ArgoCD will automatically sync your deployments
+
+## Cleanup
+
+To destroy all resources:
+
+```bash
+chmod +x scripts/destroy.sh
+./scripts/destroy.sh
+```
+
+## Cost Optimization
+
+Current setup uses:
+- **AKS**: 3x Standard_B2s nodes (~$60/month)
+- **PostgreSQL**: B_Standard_B1ms (~$15/month)
+- **Total**: ~$75/month
+
+To reduce costs:
+- Reduce node count to 1-2
+- Stop cluster when not in use: `az aks stop`
+- Start cluster: `az aks start`

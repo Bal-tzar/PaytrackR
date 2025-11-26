@@ -1,7 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using PaytrackR.Components;
 using PaytrackR.Data;
 using PaytrackR.Services;
-using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,11 +21,28 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-// Run migrations automatically on startup
+// **AUTO-MIGRATE DATABASE ON STARTUP**
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    db.Database.Migrate();
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    
+    try
+    {
+        var context = services.GetRequiredService<ApplicationDbContext>();
+        
+        logger.LogInformation("Starting database migration...");
+        
+        // Apply any pending migrations
+        context.Database.Migrate();
+        
+        logger.LogInformation("Database migration completed successfully");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while migrating the database");
+        throw; // Prevent app from starting if database is not ready
+    }
 }
 
 // Configure the HTTP request pipeline.
@@ -37,11 +54,9 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-
+app.UseStaticFiles();
 app.UseAntiforgery();
 
-app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

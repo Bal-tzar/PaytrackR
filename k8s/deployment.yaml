@@ -36,23 +36,7 @@ spec:
         envFrom:
         - configMapRef:
             name: paytrackr-config
-        # Health probes commented out until /health endpoint is added
-        # livenessProbe:
-        #   httpGet:
-        #     path: /health
-        #     port: 8080
-        #   initialDelaySeconds: 30
-        #   periodSeconds: 10
-        #   timeoutSeconds: 5
-        #   failureThreshold: 3
-        # readinessProbe:
-        #   httpGet:
-        #     path: /health
-        #     port: 8080
-        #   initialDelaySeconds: 10
-        #   periodSeconds: 5
-        #   timeoutSeconds: 3
-        #   failureThreshold: 3
+
         resources:
           requests:
             memory: "256Mi"
