@@ -6,7 +6,7 @@ metadata:
   labels:
     app: paytrackr
 spec:
-  replicas: 3
+  replicas: 2  # Reduced from 3 for faster rollouts
   selector:
     matchLabels:
       app: paytrackr
@@ -14,33 +14,42 @@ spec:
     metadata:
       labels:
         app: paytrackr
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
-        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: paytrackr
         image: baltzar1994/paytrackr:latest
-        imagePullPolicy: Always
+        imagePullPolicy: Always  # Always pull latest image
         ports:
         - containerPort: 8080
           name: http
-          protocol: TCP
         env:
+        - name: ASPNETCORE_URLS
+          value: "http://+:8080"
         - name: ConnectionStrings__DefaultConnection
           valueFrom:
             secretKeyRef:
               name: paytrackr-secrets
               key: ConnectionStrings__DefaultConnection
-        envFrom:
-        - configMapRef:
-            name: paytrackr-config
-
         resources:
           requests:
             memory: "256Mi"
-            cpu: "250m"
+            cpu: "100m"
           limits:
             memory: "512Mi"
             cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
