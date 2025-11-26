@@ -35,8 +35,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: /PaytrackR/PaytrackR
-          file: /PaytrackR/PaytrackR/Dockerfile
+          context: .
+          file: ./dockerfile
           push: true
           tags: ${{ env.DOCKER_IMAGE }}:latest
           cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache
