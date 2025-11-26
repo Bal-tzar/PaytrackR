@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paytrackr
+  namespace: paytrackr
+  labels:
+    app: paytrackr
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: paytrackr
+  template:
+    metadata:
+      labels:
+        app: paytrackr
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: paytrackr
+        image: baltzar1994/paytrackr:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: ConnectionStrings__DefaultConnection
+          valueFrom:
+            secretKeyRef:
+              name: paytrackr-secrets
+              key: ConnectionStrings__DefaultConnection
+        envFrom:
+        - configMapRef:
+            name: paytrackr-config
+
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
