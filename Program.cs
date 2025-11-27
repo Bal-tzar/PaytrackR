@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PaytrackR.Components;
 using PaytrackR.Data;
 using PaytrackR.Services;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,6 +57,8 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
+app.UseHttpMetrics();
+app.MapMetrics();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
