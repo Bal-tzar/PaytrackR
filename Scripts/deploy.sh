@@ -21,6 +21,9 @@ kubectl apply -f postgres-deployment.yaml
 kubectl apply -f postgres-service.yaml
 kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
+kubectl apply -f monitoring/grafana-deployment.yaml
+kubectl apply -f monitoring/prometheus-config.yaml
+kubectl apply -f monitoring/prometheus-deployment.yaml
 
 sleep 2m
 
